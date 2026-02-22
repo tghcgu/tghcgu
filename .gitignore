@@ -1,0 +1,12 @@
+# 認証情報（絶対にコミットしない）
+credentials.json
+token.json
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# 出力ファイル
+*.csv
