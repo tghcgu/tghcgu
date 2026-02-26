@@ -10,120 +10,164 @@ uzustudio シナリオ文章抽出ツール
 手順:
     1. スクリプトを起動するとブラウザが開きます
     2. Discord ログインを完了してください
-    3. シナリオページが表示されたら Enter を押してください
-    4. API レスポンスからテキストを抽出して result.txt / result.json に保存します
+    3. 「ログイン完了、Enter を押してください」と表示されたら Enter を押す
+    4. 全セクションを自動巡回してテキストを抽出します
+    5. result.txt / result.json に保存して終了
+
+出力:
+    result.txt  ─ 抽出したテキスト（セクション別・整形済み）
+    result.json ─ API レスポンス生データ
 """
 
 import argparse
 import json
 import re
-import sys
+import time
 from pathlib import Path
 from typing import Any
 
-from playwright.sync_api import sync_playwright, Response
+from playwright.sync_api import sync_playwright, Page, Response, Request
 
+
+# ---------------------------------------------------------------------------
+# uzustudio の編集セクション一覧
+# ---------------------------------------------------------------------------
+
+# URL の /edit/<section> 部分に対応する表示名
+EDIT_SECTIONS = [
+    ("characters",  "キャラクター"),
+    ("phases",      "フェーズ"),
+    ("clues",       "手がかり"),
+    ("tokens",      "トークン"),
+    ("rooms",       "部屋"),
+    ("actions",     "アクション"),
+    ("epilogues",   "エピローグ"),
+    ("prologue",    "プロローグ"),
+    ("scripts",     "台本"),
+    ("lines",       "セリフ"),
+    ("summary",     "あらすじ"),
+]
+
+# ---------------------------------------------------------------------------
+# フィルタ
+# ---------------------------------------------------------------------------
+
+_SKIP_EXT = re.compile(
+    r"\.(png|jpg|jpeg|gif|svg|webp|ico|woff2?|ttf|css|map|chunk\.js)(\?|$)",
+    re.IGNORECASE,
+)
+
+# uzu-app.com のすべてのサブドメインを対象にする
+_API_HOST = re.compile(r"uzu-app\.com", re.IGNORECASE)
+
+# シナリオ ID を URL から取り出す正規表現
+_SCENARIO_ID_RE = re.compile(
+    r"/scenarios/([a-f0-9]{24})", re.IGNORECASE
+)
 
 # ---------------------------------------------------------------------------
 # テキスト抽出ヘルパー
 # ---------------------------------------------------------------------------
 
-def _collect_strings(obj: Any, results: list[str], min_len: int = 2) -> None:
-    """JSON オブジェクトから再帰的に文字列を収集する。"""
-    if isinstance(obj, str):
-        v = obj.strip()
-        if len(v) >= min_len:
-            results.append(v)
-    elif isinstance(obj, list):
-        for item in obj:
-            _collect_strings(item, results, min_len)
-    elif isinstance(obj, dict):
-        for v in obj.values():
-            _collect_strings(v, results, min_len)
-
-
-# APIレスポンスから優先的に取り出すキー
+# 文章として意味のあるキー（大文字小文字無視で比較）
 _TEXT_KEYS = {
     "text", "body", "content", "description", "name", "title",
     "dialogue", "narration", "message", "script", "caption",
     "label", "choice", "option", "hint", "flavor",
     # uzustudio 固有（推定）
-    "scenarioText", "characterName", "lineText", "talkText",
-    "flavorText", "displayName",
+    "scenariotext", "charactername", "linetext", "talktext",
+    "flavortext", "displayname", "kana", "ruby",
+    "prologue", "epilogue", "summary", "profile",
+    "note", "memo", "detail", "objective", "condition",
 }
 
-_SKIP_URL_PATTERNS = re.compile(
-    r"\.(png|jpg|jpeg|gif|svg|webp|ico|woff2?|css|map)(\?|$)", re.IGNORECASE
-)
-_API_URL_PATTERNS = re.compile(
-    r"(uzu-app\.com|localhost)(.*?)(api|scenarios|characters|phases|lines|scripts)",
+# システム的な値として除外するパターン
+_SKIP_VALUE_RE = re.compile(
+    r"^(true|false|null|\d+|[a-f0-9]{24}|#[0-9a-f]{3,8}|https?://.*)$",
     re.IGNORECASE,
 )
 
 
+def _is_meaningful(s: str) -> bool:
+    """保存する価値のある文字列かどうか判定する。"""
+    s = s.strip()
+    if len(s) < 2:
+        return False
+    if _SKIP_VALUE_RE.match(s):
+        return False
+    # ASCII のみ（英単語・ID等）は除外
+    if s.isascii() and not re.search(r"[\s.,!?'\"()]", s):
+        return False
+    return True
+
+
+def _collect_strings(obj: Any, results: list[str]) -> None:
+    if isinstance(obj, str):
+        if _is_meaningful(obj):
+            results.append(obj.strip())
+    elif isinstance(obj, list):
+        for item in obj:
+            _collect_strings(item, results)
+    elif isinstance(obj, dict):
+        for v in obj.values():
+            _collect_strings(v, results)
+
+
+def extract_text_from_body(body: Any, out: list[str]) -> None:
+    """APIレスポンスボディから文章を抽出する。"""
+    if isinstance(body, dict):
+        for key, val in body.items():
+            if key.lower() in _TEXT_KEYS:
+                _collect_strings(val, out)
+            else:
+                extract_text_from_body(val, out)
+    elif isinstance(body, list):
+        for item in body:
+            extract_text_from_body(item, out)
+
+
+# ---------------------------------------------------------------------------
+# メインクラス
+# ---------------------------------------------------------------------------
+
 class ScenarioExtractor:
     def __init__(self, scenario_url: str):
-        self.scenario_url = scenario_url
-        self._captured: list[dict] = []   # (url, body)
+        self.scenario_url = scenario_url.rstrip("/")
+        self.scenario_id = self._parse_scenario_id(scenario_url)
+        self.base_editor_url = self._parse_base_editor(scenario_url)
+
+        # 収集データ
+        self._responses: dict[str, Any] = {}   # url -> json body
+        self._auth_token: str | None = None
+
+        print(f"シナリオID: {self.scenario_id}")
+        print(f"ベースURL:  {self.base_editor_url}")
 
     # ------------------------------------------------------------------
-    # ブラウザ操作
+    # URL パーサー
     # ------------------------------------------------------------------
 
-    def run(self) -> None:
-        with sync_playwright() as p:
-            browser = p.chromium.launch(headless=False, slow_mo=50)
-            context = browser.new_context(
-                viewport={"width": 1280, "height": 800},
+    @staticmethod
+    def _parse_scenario_id(url: str) -> str:
+        m = _SCENARIO_ID_RE.search(url)
+        if not m:
+            raise ValueError(
+                f"シナリオ ID が URL から見つかりません: {url}\n"
+                "URL 例: https://editor.studio.uzu-app.com/ja/scenarios/<ID>/edit/characters"
             )
-            page = context.new_page()
+        return m.group(1)
 
-            # API レスポンスを傍受
-            page.on("response", self._on_response)
-
-            print(f"\n[1] ブラウザを開きます: {self.scenario_url}")
-            page.goto(self.scenario_url, wait_until="domcontentloaded", timeout=60_000)
-
-            print("[2] Discord でログインしてください。")
-            print("    ログイン後、シナリオページが表示されたら Enter を押してください ...")
-            input()
-
-            # ページが安定するまで少し待つ
-            page.wait_for_load_state("networkidle", timeout=30_000)
-
-            # すべてのタブ（キャラ / セリフ / ヒント 等）を順にクリックして
-            # API レスポンスを取得する
-            self._click_all_nav_tabs(page)
-
-            browser.close()
-
-        self._save_results()
-
-    # ------------------------------------------------------------------
-    # ナビゲーションタブを全クリック
-    # ------------------------------------------------------------------
-
-    def _click_all_nav_tabs(self, page) -> None:
-        """サイドバーや上部タブを全てクリックして追加データを読み込む。"""
-        selectors = [
-            "nav a", "nav button",
-            "[role='tab']",
-            "[data-testid*='tab']",
-            "aside a", "aside button",
-        ]
-        visited = set()
-        for sel in selectors:
-            try:
-                elements = page.query_selector_all(sel)
-                for el in elements:
-                    href = el.get_attribute("href") or el.inner_text()
-                    if href in visited:
-                        continue
-                    visited.add(href)
-                    el.click()
-                    page.wait_for_load_state("networkidle", timeout=8_000)
-            except Exception:
-                pass
+    @staticmethod
+    def _parse_base_editor(url: str) -> str:
+        """https://editor.studio.uzu-app.com/ja/scenarios/<ID>"""
+        m = _SCENARIO_ID_RE.search(url)
+        origin = re.match(r"(https?://[^/]+)", url)
+        if not m or not origin:
+            raise ValueError(f"URL のパースに失敗しました: {url}")
+        # /ja/ などのロケール部分を取得
+        locale_m = re.search(r"/(ja|en|zh|ko)/", url)
+        locale = locale_m.group(1) if locale_m else "ja"
+        return f"{origin.group(1)}/{locale}/scenarios/{m.group(1)}"
 
     # ------------------------------------------------------------------
     # レスポンス傍受
@@ -131,69 +175,237 @@ class ScenarioExtractor:
 
     def _on_response(self, response: Response) -> None:
         url = response.url
-        if _SKIP_URL_PATTERNS.search(url):
+        if _SKIP_EXT.search(url):
             return
-        if not _API_URL_PATTERNS.search(url):
+        if not _API_HOST.search(url):
             return
+
+        # 認証トークンを傍受（Authorization: Bearer <token>）
         try:
-            body = response.json()
-            self._captured.append({"url": url, "body": body})
+            req_headers = response.request.headers
+            auth = req_headers.get("authorization", "")
+            if auth.startswith("Bearer ") and not self._auth_token:
+                self._auth_token = auth.split(" ", 1)[1]
+                print(f"  [auth] トークン取得: {self._auth_token[:20]}...")
         except Exception:
             pass
+
+        # JSON レスポンスを収集
+        try:
+            body = response.json()
+            self._responses[url] = body
+        except Exception:
+            pass
+
+    # ------------------------------------------------------------------
+    # ページ遷移
+    # ------------------------------------------------------------------
+
+    def _goto_and_wait(self, page: Page, url: str, label: str) -> None:
+        print(f"  -> {label}: {url}")
+        try:
+            page.goto(url, wait_until="domcontentloaded", timeout=30_000)
+            # networkidle まで最大 10 秒待つ（タイムアウトしても続行）
+            try:
+                page.wait_for_load_state("networkidle", timeout=10_000)
+            except Exception:
+                pass
+            time.sleep(1)  # React の非同期レンダリング待ち
+        except Exception as e:
+            print(f"     [警告] ページ読み込みエラー: {e}")
+
+    def _try_api_directly(self, page: Page) -> None:
+        """認証トークンがあれば API を直接 fetch する。"""
+        if not self._auth_token:
+            return
+        print("\n[直接 API 呼び出し中]")
+        sid = self.scenario_id
+        token = self._auth_token
+        # よくある REST API パターンを試す
+        candidate_paths = [
+            f"/api/scenarios/{sid}",
+            f"/api/v1/scenarios/{sid}",
+            f"/api/scenarios/{sid}/characters",
+            f"/api/scenarios/{sid}/phases",
+            f"/api/scenarios/{sid}/clues",
+            f"/api/scenarios/{sid}/lines",
+            f"/api/scenarios/{sid}/scripts",
+            f"/api/scenarios/{sid}/actions",
+            f"/api/scenarios/{sid}/tokens",
+            f"/api/scenarios/{sid}/rooms",
+            f"/api/scenarios/{sid}/epilogues",
+        ]
+        origin = re.match(r"(https?://[^/]+)", self.scenario_url).group(1)
+        for path in candidate_paths:
+            url = origin + path
+            result = page.evaluate(f"""
+                async () => {{
+                    try {{
+                        const r = await fetch({json.dumps(url)}, {{
+                            headers: {{
+                                "Authorization": "Bearer {token}",
+                                "Accept": "application/json"
+                            }}
+                        }});
+                        if (!r.ok) return null;
+                        return await r.json();
+                    }} catch(e) {{
+                        return null;
+                    }}
+                }}
+            """)
+            if result:
+                self._responses[url] = result
+                print(f"  [OK] {url}")
+
+    # ------------------------------------------------------------------
+    # メイン処理
+    # ------------------------------------------------------------------
+
+    def run(self) -> None:
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=False, slow_mo=30)
+            context = browser.new_context(viewport={"width": 1280, "height": 900})
+            page = context.new_page()
+            page.on("response", self._on_response)
+
+            # 最初のページを開く
+            print(f"\n[1] ブラウザを開きます...")
+            page.goto(self.scenario_url, wait_until="domcontentloaded", timeout=60_000)
+
+            print("[2] Discord でログインしてください。")
+            print("    ログイン後、シナリオページが表示されたら Enter を押してください ...")
+            input()
+
+            try:
+                page.wait_for_load_state("networkidle", timeout=15_000)
+            except Exception:
+                pass
+            time.sleep(2)
+
+            # 直接 API 呼び出しを試みる
+            self._try_api_directly(page)
+
+            # 全セクションを順に巡回
+            print("\n[3] 全セクションを巡回中...")
+            for section, label in EDIT_SECTIONS:
+                url = f"{self.base_editor_url}/edit/{section}"
+                self._goto_and_wait(page, url, label)
+
+                # ページ内のリスト項目をクリックしてサブデータも収集
+                self._expand_list_items(page)
+
+            # 追加の直接 API 呼び出し
+            self._try_api_directly(page)
+
+            browser.close()
+
+        self._save_results()
+
+    def _expand_list_items(self, page: Page) -> None:
+        """リストの各アイテムをクリックして詳細データを取得する。"""
+        # カード・リスト・行をクリックして展開
+        click_selectors = [
+            "ul li a", "ul li button",
+            "[data-testid*='item']",
+            "[class*='card']", "[class*='Card']",
+            "[class*='list-item']", "[class*='ListItem']",
+            "[class*='row']",
+        ]
+        visited = set()
+        for sel in click_selectors:
+            try:
+                elements = page.query_selector_all(sel)
+                if not elements:
+                    continue
+                for el in elements[:20]:  # 最大 20 件
+                    key = el.get_attribute("href") or el.inner_text()[:30]
+                    if key in visited:
+                        continue
+                    visited.add(key)
+                    try:
+                        el.click()
+                        page.wait_for_load_state("networkidle", timeout=5_000)
+                        time.sleep(0.5)
+                    except Exception:
+                        pass
+            except Exception:
+                pass
 
     # ------------------------------------------------------------------
     # 結果保存
     # ------------------------------------------------------------------
 
     def _save_results(self) -> None:
-        all_text: list[str] = []
-        structured: dict[str, Any] = {}
+        print("\n[4] テキスト抽出・保存中...")
 
-        for item in self._captured:
-            url = item["url"]
-            body = item["body"]
+        # セクション別に整理
+        sections_text: dict[str, list[str]] = {}
+        all_texts: list[str] = []
 
-            # 構造化データとして保存
-            structured[url] = body
+        for url, body in self._responses.items():
+            # URL からセクション名を推定
+            section = self._guess_section(url)
+            texts: list[str] = []
+            extract_text_from_body(body, texts)
+            if texts:
+                if section not in sections_text:
+                    sections_text[section] = []
+                sections_text[section].extend(texts)
+                all_texts.extend(texts)
 
-            # テキスト抽出
-            self._extract_text_from_body(body, all_text)
+        # 重複除去（順序保持）
+        def dedup(lst: list[str]) -> list[str]:
+            seen: set[str] = set()
+            out: list[str] = []
+            for t in lst:
+                if t not in seen:
+                    seen.add(t)
+                    out.append(t)
+            return out
 
-        # 重複排除（順序保持）
-        seen: set[str] = set()
-        unique_texts: list[str] = []
-        for t in all_text:
-            if t not in seen:
-                seen.add(t)
-                unique_texts.append(t)
+        # result.txt（セクション別・整形済み）
+        lines: list[str] = []
+        lines.append(f"# シナリオ ID: {self.scenario_id}")
+        lines.append("")
+        for section, texts in sorted(sections_text.items()):
+            texts = dedup(texts)
+            if not texts:
+                continue
+            lines.append(f"## {section}")
+            for t in texts:
+                lines.append(t)
+            lines.append("")
 
-        # result.txt
+        # セクション分類できなかったテキストも追記
+        categorized = {t for lst in sections_text.values() for t in lst}
+        uncategorized = [t for t in dedup(all_texts) if t not in categorized]
+        if uncategorized:
+            lines.append("## その他")
+            lines.extend(uncategorized)
+
         txt_path = Path("result.txt")
-        txt_path.write_text("\n".join(unique_texts), encoding="utf-8")
-        print(f"\n[完了] テキスト {len(unique_texts)} 件 -> {txt_path.resolve()}")
+        txt_path.write_text("\n".join(lines), encoding="utf-8")
+        total = len(dedup(all_texts))
+        print(f"[完了] テキスト {total} 件 -> {txt_path.resolve()}")
 
-        # result.json（APIレスポンス全体）
+        # result.json（APIレスポンス生データ）
         json_path = Path("result.json")
         json_path.write_text(
-            json.dumps(structured, ensure_ascii=False, indent=2), encoding="utf-8"
+            json.dumps(self._responses, ensure_ascii=False, indent=2),
+            encoding="utf-8",
         )
         print(f"[完了] 生データ -> {json_path.resolve()}")
 
-    def _extract_text_from_body(self, body: Any, out: list[str]) -> None:
-        """レスポンスボディから文章を抽出する。"""
-        if isinstance(body, dict):
-            for key, val in body.items():
-                if key.lower() in _TEXT_KEYS:
-                    _collect_strings(val, out)
-                else:
-                    self._extract_text_from_body(val, out)
-        elif isinstance(body, list):
-            for item in body:
-                self._extract_text_from_body(item, out)
-        elif isinstance(body, str):
-            v = body.strip()
-            if len(v) >= 2:
-                out.append(v)
+    @staticmethod
+    def _guess_section(url: str) -> str:
+        """URL からセクション名を推定する。"""
+        for section, label in EDIT_SECTIONS:
+            if section in url:
+                return label
+        if "scenario" in url.lower():
+            return "シナリオ"
+        return "その他"
 
 
 # ---------------------------------------------------------------------------
@@ -211,12 +423,16 @@ def main() -> None:
             "https://editor.studio.uzu-app.com"
             "/ja/scenarios/65123bdd811f99978d160e13/edit/characters"
         ),
-        help="シナリオの編集ページ URL",
+        help="シナリオの編集ページ URL（どのセクションでも可）",
     )
     args = parser.parse_args()
 
-    extractor = ScenarioExtractor(args.url)
-    extractor.run()
+    try:
+        extractor = ScenarioExtractor(args.url)
+        extractor.run()
+    except ValueError as e:
+        print(f"[エラー] {e}")
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":
