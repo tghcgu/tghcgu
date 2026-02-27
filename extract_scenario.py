@@ -1,22 +1,35 @@
 """
-uzustudio シナリオ文章抽出ツール
-================================
-使い方:
-    python extract_scenario.py <シナリオURL>
+uzustudio シナリオ文章抽出ツール（PC用）
+========================================
+【使い方】
 
-例:
-    python extract_scenario.py "https://editor.studio.uzu-app.com/ja/scenarios/65123bdd811f99978d160e13/edit/characters"
+  python extract_scenario.py <シナリオURL>
 
-手順:
-    1. スクリプトを起動するとブラウザが開きます
-    2. Discord ログインを完了してください
-    3. 「ログイン完了、Enter を押してください」と表示されたら Enter を押す
-    4. 全セクションを自動巡回してテキストを抽出します
-    5. result.txt / result.json に保存して終了
+【例】
 
-出力:
-    result.txt  ─ 抽出したテキスト（セクション別・整形済み）
-    result.json ─ API レスポンス生データ
+  python extract_scenario.py "https://editor.studio.uzu-app.com/ja/scenarios/65123bdd811f99978d160e13/edit/characters"
+
+  ※ URL はどのセクション（characters / phases / clues など）でも OK
+
+【手順】
+
+  1. スクリプトを起動すると Chrome ブラウザが自動で開きます
+  2. 画面の指示に従い Discord でログインしてください
+  3. シナリオページが表示されたらターミナルに戻り Enter を押す
+  4. 全セクションを自動で巡回してテキストを収集します（数十秒）
+  5. 完了後、以下のファイルが作られます:
+       result.txt  … セクション別のテキスト一覧
+       result.json … APIレスポンス生データ（開発者向け）
+
+【初回セットアップ】
+
+  pip install playwright
+  playwright install chromium
+
+【スマホで使いたい場合】
+
+  bookmarklet.min.js の内容をブラウザのブックマークURLに貼り付けてください。
+  uzustudio のシナリオページを開いてブックマークをタップするだけで抽出できます。
 """
 
 import argparse
@@ -140,8 +153,8 @@ class ScenarioExtractor:
         self._responses: dict[str, Any] = {}   # url -> json body
         self._auth_token: str | None = None
 
-        print(f"シナリオID: {self.scenario_id}")
-        print(f"ベースURL:  {self.base_editor_url}")
+        print(f"  シナリオID : {self.scenario_id}")
+        print(f"  ベースURL  : {self.base_editor_url}")
 
     # ------------------------------------------------------------------
     # URL パーサー
@@ -270,12 +283,13 @@ class ScenarioExtractor:
             page.on("response", self._on_response)
 
             # 最初のページを開く
-            print(f"\n[1] ブラウザを開きます...")
+            print(f"\n[ステップ 1/4] ブラウザを開いています...")
             page.goto(self.scenario_url, wait_until="domcontentloaded", timeout=60_000)
 
-            print("[2] Discord でログインしてください。")
-            print("    ログイン後、シナリオページが表示されたら Enter を押してください ...")
-            input()
+            print("\n[ステップ 2/4] Discord でログインしてください。")
+            print("  ログインが完了し、シナリオページが表示されたら")
+            print("  このターミナルに戻って Enter を押してください。")
+            input("  ▶ Enter を押す: ")
 
             try:
                 page.wait_for_load_state("networkidle", timeout=15_000)
@@ -283,16 +297,15 @@ class ScenarioExtractor:
                 pass
             time.sleep(2)
 
+            print("\n[ステップ 3/4] データを収集中...")
+
             # 直接 API 呼び出しを試みる
             self._try_api_directly(page)
 
             # 全セクションを順に巡回
-            print("\n[3] 全セクションを巡回中...")
             for section, label in EDIT_SECTIONS:
                 url = f"{self.base_editor_url}/edit/{section}"
                 self._goto_and_wait(page, url, label)
-
-                # ページ内のリスト項目をクリックしてサブデータも収集
                 self._expand_list_items(page)
 
             # 追加の直接 API 呼び出し
@@ -337,7 +350,7 @@ class ScenarioExtractor:
     # ------------------------------------------------------------------
 
     def _save_results(self) -> None:
-        print("\n[4] テキスト抽出・保存中...")
+        print("\n[ステップ 4/4] テキストを整理して保存中...")
 
         # セクション別に整理
         sections_text: dict[str, list[str]] = {}
@@ -387,15 +400,21 @@ class ScenarioExtractor:
         txt_path = Path("result.txt")
         txt_path.write_text("\n".join(lines), encoding="utf-8")
         total = len(dedup(all_texts))
-        print(f"[完了] テキスト {total} 件 -> {txt_path.resolve()}")
 
-        # result.json（APIレスポンス生データ）
         json_path = Path("result.json")
         json_path.write_text(
             json.dumps(self._responses, ensure_ascii=False, indent=2),
             encoding="utf-8",
         )
-        print(f"[完了] 生データ -> {json_path.resolve()}")
+
+        print("")
+        print("=" * 50)
+        print(f"  完了！  テキスト {total} 件を抽出しました")
+        print("=" * 50)
+        print(f"  📄 result.txt  … テキスト一覧（セクション別）")
+        print(f"  📦 result.json … 生データ（開発者向け）")
+        print(f"  場所: {txt_path.parent.resolve()}")
+        print("=" * 50)
 
     @staticmethod
     def _guess_section(url: str) -> str:
@@ -427,11 +446,14 @@ def main() -> None:
     )
     args = parser.parse_args()
 
+    print("=" * 50)
+    print("  uzustudio シナリオ文章抽出ツール")
+    print("=" * 50)
     try:
         extractor = ScenarioExtractor(args.url)
         extractor.run()
     except ValueError as e:
-        print(f"[エラー] {e}")
+        print(f"\n[エラー] {e}")
         raise SystemExit(1)
 
 
