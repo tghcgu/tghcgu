@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/colorBackground"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="24dp"
+        android:gravity="center_horizontal">
+
+        <!-- App title -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Power Button Recorder"
+            android:textSize="22sp"
+            android:textColor="@color/colorOnSurface"
+            android:textStyle="bold"
+            android:layout_marginTop="16dp"
+            android:layout_marginBottom="8dp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Pixel 9a 電源ボタン録音"
+            android:textSize="14sp"
+            android:textColor="@color/colorTextSecondary"
+            android:layout_marginBottom="24dp" />
+
+        <!-- Overall status -->
+        <TextView
+            android:id="@+id/tvOverallStatus"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="確認中..."
+            android:textSize="16sp"
+            android:textColor="@color/colorOnSurface"
+            android:gravity="center"
+            android:padding="16dp"
+            android:background="#1EFFFFFF"
+            android:layout_marginBottom="32dp" />
+
+        <!-- Step 1 -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="ステップ 1: 権限を許可"
+            android:textSize="16sp"
+            android:textColor="@color/colorAccent"
+            android:textStyle="bold"
+            android:layout_marginBottom="8dp" />
+
+        <TextView
+            android:id="@+id/tvStatusAudio"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="マイク権限: 確認中..."
+            android:textColor="@color/colorOnSurface"
+            android:layout_marginBottom="4dp" />
+
+        <TextView
+            android:id="@+id/tvStatusNotification"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="通知権限: 確認中..."
+            android:textColor="@color/colorOnSurface"
+            android:layout_marginBottom="12dp" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnGrantPermissions"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="権限を許可する"
+            android:layout_marginBottom="28dp" />
+
+        <!-- Step 2 -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="ステップ 2: アクセシビリティを有効化"
+            android:textSize="16sp"
+            android:textColor="@color/colorAccent"
+            android:textStyle="bold"
+            android:layout_marginBottom="8dp" />
+
+        <TextView
+            android:id="@+id/tvStatusAccessibility"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="アクセシビリティ: 確認中..."
+            android:textColor="@color/colorOnSurface"
+            android:layout_marginBottom="12dp" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnOpenAccessibility"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="アクセシビリティ設定を開く"
+            android:layout_marginBottom="32dp" />
+
+        <!-- Usage instructions -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="使い方"
+            android:textSize="16sp"
+            android:textColor="@color/colorAccent"
+            android:textStyle="bold"
+            android:layout_marginBottom="8dp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="• 電源ボタンを 0.6秒以上 長押し → 録音開始\n• もう一度長押し → 録音停止\n• 通知の「停止」ボタンでも停止可能\n\n録音ファイルの保存先:\nAndroid/data/com.tghcgu.powerrecorder/files/Recordings/"
+            android:textColor="@color/colorTextSecondary"
+            android:textSize="14sp"
+            android:lineSpacingMultiplier="1.4" />
+
+    </LinearLayout>
+</ScrollView>

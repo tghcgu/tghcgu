@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Power Button Recorder</string>
+
+    <!-- Accessibility Service -->
+    <string name="accessibility_service_label">Power Button Recorder</string>
+    <string name="accessibility_service_description">
+        電源ボタンの長押しを検出して、画面ロック中でも音声録音を開始・停止します。
+        キー入力の監視はシステムの電源ボタンのみです。
+    </string>
+
+    <!-- Notification -->
+    <string name="notification_channel_name">録音</string>
+    <string name="notification_channel_description">音声録音中に表示されます</string>
+    <string name="notification_recording_title">録音中</string>
+    <string name="notification_recording_text">電源ボタン長押しで停止</string>
+    <string name="notification_stop_action">停止</string>
+
+    <!-- Dialogs -->
+    <string name="dialog_accessibility_title">アクセシビリティサービスを有効化</string>
+    <string name="dialog_accessibility_message">
+        電源ボタンの長押しを検出するため、アクセシビリティ設定で「Power Button Recorder」を有効にしてください。\n\n
+        設定 > ユーザー補助 > インストール済みアプリ > Power Button Recorder
+    </string>
+    <string name="dialog_open_settings">設定を開く</string>
+    <string name="dialog_permission_title">マイク権限が必要です</string>
+    <string name="dialog_permission_message">
+        録音にはマイクへのアクセス権限が必要です。アプリ設定から権限を許可してください。
+    </string>
+</resources>
