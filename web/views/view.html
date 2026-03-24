@@ -18,15 +18,25 @@
     section { background: #16213e; border: 1px solid #2d2d5e; border-radius: 12px; padding: 20px; margin-bottom: 20px; }
     section h3 { font-size: 1rem; color: #5865f2; margin-bottom: 12px; }
     section p { line-height: 1.7; color: #ccc; white-space: pre-wrap; }
-    .char-list { display: grid; gap: 14px; }
-    .char { background: #0f0f23; border-radius: 8px; padding: 14px; }
-    .char-name { font-weight: 700; color: #fff; font-size: 1rem; margin-bottom: 6px; }
-    .char-killer { color: #ed4245; font-size: 0.75rem; font-weight: 700; margin-left: 8px; }
-    .char-desc { color: #aaa; font-size: 0.9rem; line-height: 1.5; }
-    .clue-list { display: grid; gap: 12px; }
-    .clue { background: #0f0f23; border-radius: 8px; padding: 12px 14px; }
+    .char-list, .clue-list, .phase-list { display: grid; gap: 12px; }
+    .item { background: #0f0f23; border-radius: 8px; padding: 14px; }
+    .item-name { font-weight: 700; color: #fff; font-size: 1rem; margin-bottom: 6px; }
+    .item-desc { color: #aaa; font-size: 0.9rem; line-height: 1.5; }
+    .killer-tag { color: #ed4245; font-size: 0.75rem; font-weight: 700; margin-left: 8px; }
     .clue-name { font-weight: 600; color: #ffe066; margin-bottom: 4px; font-size: 0.9rem; }
-    .clue-desc { color: #aaa; font-size: 0.85rem; line-height: 1.5; }
+
+    /* フェーズ */
+    .phase-item { background: #0f0f23; border-radius: 8px; padding: 14px; display: flex; gap: 14px; align-items: flex-start; }
+    .phase-num { min-width: 32px; height: 32px; border-radius: 50%; background: #2d2d5e; color: #aaa; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.85rem; flex-shrink: 0; }
+    .phase-body { flex: 1; }
+    .phase-name { font-weight: 700; color: #fff; margin-bottom: 4px; }
+    .phase-desc { color: #aaa; font-size: 0.85rem; line-height: 1.5; margin-bottom: 6px; }
+    .phase-cond { font-size: 0.78rem; padding: 4px 10px; border-radius: 12px; display: inline-block; font-weight: 600; }
+    .cond-manual             { background: #5865f2; color: #fff; }
+    .cond-clues_investigated { background: #57f287; color: #000; }
+    .cond-all_players_ready  { background: #fee75c; color: #000; }
+    .cond-vote               { background: #ed4245; color: #fff; }
+
     .spoiler { filter: blur(5px); cursor: pointer; transition: filter 0.3s; user-select: none; }
     .spoiler:hover, .spoiler.revealed { filter: none; }
     .spoiler-hint { font-size: 0.75rem; color: #666; margin-top: 6px; }
@@ -62,6 +72,11 @@
     </section>
 
     <section>
+      <h3>🗺️ フェーズ構成</h3>
+      <div class="phase-list" id="s-phases"></div>
+    </section>
+
+    <section>
       <h3>🔐 真相（クリックで表示）</h3>
       <p class="spoiler" id="s-answer" onclick="this.classList.add('revealed')"></p>
       <p class="spoiler-hint">クリックまたはタップで表示。ゲーム中は参加者に見せないでください。</p>
@@ -70,14 +85,31 @@
     <section>
       <h3>🎮 Discordでゲームを始める</h3>
       <p style="color:#aaa; font-size:0.9rem; margin-bottom:12px;">このシナリオIDをDiscordで使ってゲームを開始できます。</p>
-      <div class="discord-box">
-        <code id="discord-cmd"></code>
-      </div>
+      <div class="discord-box"><code id="discord-cmd"></code></div>
     </section>
   </main>
 
   <script>
     const id = location.pathname.split('/').pop();
+
+    const TYPE_LABELS = {
+      manual:             'GM手動',
+      clues_investigated: '手がかり調査',
+      all_players_ready:  '全員準備完了',
+      vote:               '投票',
+    };
+
+    function condText(p) {
+      switch(p.type) {
+        case 'clues_investigated': return `手がかり ${p.condition_value}個 調査後にGM進行`;
+        case 'all_players_ready':  return '全員準備完了で自動進行';
+        case 'vote': {
+          const fail = p.on_fail_phase_index != null ? ` / 未達→フェーズ${p.on_fail_phase_index}に戻る` : '';
+          return `投票 ${p.condition_value}% 以上で次へ${fail}`;
+        }
+        default: return 'GMが /game phase を実行して進む';
+      }
+    }
 
     function esc(s) {
       return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -98,29 +130,39 @@
       document.getElementById('s-answer').textContent = s.answer;
       document.getElementById('discord-cmd').textContent = `/game start ${s.id}`;
 
+      // キャラクター
       const chars = document.getElementById('s-chars');
-      if (s.characters.length === 0) {
-        chars.innerHTML = '<p style="color:#666">キャラクターなし</p>';
-      } else {
-        chars.innerHTML = s.characters.map(c => `
-          <div class="char">
-            <div class="char-name">${esc(c.name)}${c.is_killer ? '<span class="char-killer">🔪 犯人</span>' : ''}</div>
-            <div class="char-desc">${esc(c.description)}</div>
-          </div>
-        `).join('');
-      }
+      chars.innerHTML = s.characters.length === 0
+        ? '<p style="color:#666">キャラクターなし</p>'
+        : s.characters.map(c => `
+          <div class="item">
+            <div class="item-name">${esc(c.name)}${c.is_killer ? '<span class="killer-tag">🔪 犯人</span>' : ''}</div>
+            <div class="item-desc">${esc(c.description)}</div>
+          </div>`).join('');
 
+      // 手がかり
       const clues = document.getElementById('s-clues');
-      if (s.clues.length === 0) {
-        clues.innerHTML = '<p style="color:#666">手がかりなし</p>';
-      } else {
-        clues.innerHTML = s.clues.map((c, i) => `
-          <div class="clue">
+      clues.innerHTML = s.clues.length === 0
+        ? '<p style="color:#666">手がかりなし</p>'
+        : s.clues.map(c => `
+          <div class="item">
             <div class="clue-name">#${c.id} ${esc(c.name)}</div>
-            <div class="clue-desc">${esc(c.description)}</div>
-          </div>
-        `).join('');
-      }
+            <div class="item-desc">${esc(c.description)}</div>
+          </div>`).join('');
+
+      // フェーズ
+      const phases = document.getElementById('s-phases');
+      const isDefault = s.phases && s.phases[0]?.id < 0;
+      phases.innerHTML = (isDefault ? '<p style="color:#888;font-size:0.8rem;margin-bottom:12px;">※ デフォルトフェーズを使用</p>' : '') +
+        s.phases.map((p, i) => `
+          <div class="phase-item">
+            <div class="phase-num">${i + 1}</div>
+            <div class="phase-body">
+              <div class="phase-name">${esc(p.name)}</div>
+              ${p.description ? `<div class="phase-desc">${esc(p.description)}</div>` : ''}
+              <span class="phase-cond cond-${p.type}">${condText(p)}</span>
+            </div>
+          </div>`).join('');
     }
 
     load();

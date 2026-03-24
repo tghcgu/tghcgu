@@ -11,11 +11,10 @@
     header a { color: #aaa; text-decoration: none; font-size: 0.9rem; }
     header a:hover { color: #fff; }
     header h1 { font-size: 1.4rem; color: #fff; }
-    main { max-width: 760px; margin: 40px auto; padding: 0 20px 80px; }
+    main { max-width: 800px; margin: 40px auto; padding: 0 20px 80px; }
 
-    /* Step indicators */
-    .steps { display: flex; gap: 8px; margin-bottom: 36px; }
-    .step { flex: 1; padding: 10px; text-align: center; border-radius: 8px; font-size: 0.85rem; font-weight: 600; background: #16213e; color: #555; border: 2px solid transparent; transition: all 0.2s; }
+    .steps { display: flex; gap: 8px; margin-bottom: 36px; flex-wrap: wrap; }
+    .step { flex: 1; min-width: 80px; padding: 10px 6px; text-align: center; border-radius: 8px; font-size: 0.8rem; font-weight: 600; background: #16213e; color: #555; border: 2px solid transparent; transition: all 0.2s; }
     .step.active { border-color: #5865f2; color: #5865f2; }
     .step.done { background: #5865f2; color: #fff; }
 
@@ -24,12 +23,12 @@
 
     h2 { font-size: 1.2rem; margin-bottom: 20px; color: #fff; }
     label { display: block; margin-bottom: 6px; font-size: 0.85rem; color: #bbb; }
-    input[type=text], textarea, select {
+    input[type=text], input[type=number], textarea, select {
       width: 100%; padding: 10px 14px; border-radius: 8px;
       border: 1px solid #2d2d5e; background: #0f0f23; color: #e0e0e0;
       font-size: 0.95rem; font-family: inherit; resize: vertical;
     }
-    input[type=text]:focus, textarea:focus { outline: none; border-color: #5865f2; }
+    input[type=text]:focus, input[type=number]:focus, textarea:focus, select:focus { outline: none; border-color: #5865f2; }
     .field { margin-bottom: 18px; }
     .hint { font-size: 0.75rem; color: #666; margin-top: 4px; }
 
@@ -43,18 +42,32 @@
     .btn-add { background: #23234d; color: #5865f2; border: 1px dashed #5865f2; width: 100%; padding: 10px; border-radius: 8px; margin-top: 8px; cursor: pointer; font-size: 0.9rem; }
     .btn-add:hover { background: #2d2d6e; }
 
-    .char-card, .clue-card {
-      background: #16213e; border: 1px solid #2d2d5e; border-radius: 10px;
-      padding: 16px; margin-bottom: 14px;
-    }
-    .char-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
-    .char-card-header span { font-weight: 600; color: #ccc; }
+    .card { background: #16213e; border: 1px solid #2d2d5e; border-radius: 10px; padding: 16px; margin-bottom: 14px; }
+    .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+    .card-header span { font-weight: 600; color: #ccc; }
     .char-check { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
     .char-check input { width: auto; }
     .char-check label { margin: 0; color: #ed4245; font-weight: 600; font-size: 0.9rem; }
 
-    .nav-btns { display: flex; gap: 12px; margin-top: 28px; }
+    /* フェーズカード */
+    .phase-card { background: #16213e; border: 1px solid #2d2d5e; border-radius: 10px; padding: 16px; margin-bottom: 14px; }
+    .phase-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+    .phase-type-badge { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 0.75rem; font-weight: 700; margin-left: 8px; }
+    .badge-manual              { background: #5865f2; color: #fff; }
+    .badge-clues_investigated  { background: #57f287; color: #000; }
+    .badge-all_players_ready   { background: #fee75c; color: #000; }
+    .badge-vote                { background: #ed4245; color: #fff; }
 
+    .cond-fields { margin-top: 12px; padding: 12px; background: #0f0f23; border-radius: 8px; border: 1px solid #2d2d5e; }
+    .cond-fields label { color: #aaa; font-size: 0.8rem; }
+    .cond-fields input, .cond-fields select { margin-top: 4px; }
+    .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+    .phase-order-btns { display: flex; gap: 6px; }
+    .phase-order-btns button { background: #2d2d5e; color: #aaa; border: none; border-radius: 6px; padding: 4px 8px; cursor: pointer; font-size: 0.85rem; }
+    .phase-order-btns button:hover { background: #3d3d7e; }
+
+    .nav-btns { display: flex; gap: 12px; margin-top: 28px; align-items: flex-start; }
     .error { color: #ed4245; font-size: 0.85rem; margin-top: 8px; display: none; }
     #submit-error { color: #ed4245; margin-bottom: 12px; display: none; }
     #success { background: #1e3a1e; border: 1px solid #4caf50; padding: 20px; border-radius: 10px; text-align: center; display: none; }
@@ -62,6 +75,9 @@
     #success p { margin-top: 8px; color: #aaa; }
     #success .scenario-id { font-size: 1.8rem; font-weight: bold; color: #5865f2; margin: 12px 0; }
     #success a { color: #5865f2; }
+
+    .default-note { background: #16213e; border: 1px solid #3d3d7e; border-radius: 8px; padding: 12px 16px; margin-bottom: 16px; font-size: 0.85rem; color: #aaa; }
+    .default-note strong { color: #ccc; }
   </style>
 </head>
 <body>
@@ -74,9 +90,10 @@
       <div class="step active" id="step-1">1. 基本情報</div>
       <div class="step" id="step-2">2. キャラクター</div>
       <div class="step" id="step-3">3. 手がかり</div>
+      <div class="step" id="step-4">4. フェーズ設定</div>
     </div>
 
-    <!-- STEP 1: 基本情報 -->
+    <!-- STEP 1 -->
     <div class="section visible" id="sec-1">
       <h2>事件の基本情報</h2>
       <div class="field">
@@ -86,13 +103,13 @@
       </div>
       <div class="field">
         <label>概要（全プレイヤーに公開） *</label>
-        <textarea id="overview" rows="4" placeholder="例：孤立した山荘で朝、参加者の一人が死体で発見された。犯人はこの中にいる…"></textarea>
+        <textarea id="overview" rows="4" placeholder="例：孤立した山荘で朝、参加者の一人が死体で発見された…"></textarea>
         <div class="error" id="err-overview">概要を入力してください</div>
       </div>
       <div class="field">
         <label>真相（ゲーム終了後に公開） *</label>
         <textarea id="answer" rows="4" placeholder="例：犯人は◯◯。動機は…"></textarea>
-        <div class="hint">⚠️ プレイ中は公開されません。ゲーム終了後の「結末」として表示されます。</div>
+        <div class="hint">⚠️ プレイ中は非公開。ゲーム終了後の「結末」として表示されます。</div>
         <div class="error" id="err-answer">真相を入力してください</div>
       </div>
       <div class="nav-btns">
@@ -100,7 +117,7 @@
       </div>
     </div>
 
-    <!-- STEP 2: キャラクター -->
+    <!-- STEP 2 -->
     <div class="section" id="sec-2">
       <h2>キャラクター（最低2人・犯人1人必須）</h2>
       <div id="chars"></div>
@@ -112,13 +129,28 @@
       </div>
     </div>
 
-    <!-- STEP 3: 手がかり -->
+    <!-- STEP 3 -->
     <div class="section" id="sec-3">
-      <h2>手がかり（任意・複数追加可）</h2>
+      <h2>手がかり（任意）</h2>
       <div id="clues"></div>
       <button class="btn-add" onclick="addClue()">＋ 手がかりを追加</button>
       <div class="nav-btns">
         <button class="btn btn-secondary" onclick="goTo(2)">← 戻る</button>
+        <button class="btn btn-primary" onclick="goTo(4)">次へ →</button>
+      </div>
+    </div>
+
+    <!-- STEP 4: フェーズ設定 -->
+    <div class="section" id="sec-4">
+      <h2>フェーズ設定</h2>
+      <div class="default-note">
+        <strong>フェーズを設定しない場合</strong>は標準の4フェーズ（導入→調査→議論→投票）が使われます。<br>
+        自由にフェーズを追加・並べ替え・条件設定できます。
+      </div>
+      <div id="phases"></div>
+      <button class="btn-add" onclick="addPhase()">＋ フェーズを追加</button>
+      <div class="nav-btns">
+        <button class="btn btn-secondary" onclick="goTo(3)">← 戻る</button>
         <div>
           <div id="submit-error"></div>
           <button class="btn btn-primary" onclick="submit()">✓ シナリオを保存</button>
@@ -137,9 +169,15 @@
   </main>
 
   <script>
-    let charCount = 0;
-    let clueCount = 0;
+    let charCount = 0, clueCount = 0, phaseCount = 0;
     let currentStep = 1;
+
+    const TYPE_INFO = {
+      manual:             { label: 'GM手動', badge: 'badge-manual',             desc: 'GMが /game phase を実行すると次のフェーズへ進みます。' },
+      clues_investigated: { label: '手がかり調査', badge: 'badge-clues_investigated', desc: 'N個の手がかりを調査してからGMが次へ進められます。' },
+      all_players_ready:  { label: '全員準備完了', badge: 'badge-all_players_ready',  desc: '全プレイヤーがボタンを押すと自動で次のフェーズへ進みます。' },
+      vote:               { label: '投票', badge: 'badge-vote',               desc: '全員が投票し、指定%以上の得票があれば次へ。未達なら指定フェーズへ戻ります。' },
+    };
 
     function goTo(step) {
       if (step > currentStep && !validate(currentStep)) return;
@@ -160,73 +198,41 @@
           const val = document.getElementById(id).value.trim();
           const err = document.getElementById('err-' + id);
           if (!val) { err.style.display = 'block'; ok = false; }
-          else { err.style.display = 'none'; }
+          else err.style.display = 'none';
         });
         return ok;
       }
       if (step === 2) {
         const errEl = document.getElementById('err-chars');
         const chars = collectChars();
-        if (chars.length < 2) {
-          errEl.textContent = 'キャラクターを最低2人追加してください';
-          errEl.style.display = 'block'; return false;
-        }
-        if (!chars.some(c => c.is_killer)) {
-          errEl.textContent = '犯人キャラクターを1人指定してください（チェックボックス）';
-          errEl.style.display = 'block'; return false;
-        }
+        if (chars.length < 2) { errEl.textContent = 'キャラクターを最低2人追加してください'; errEl.style.display = 'block'; return false; }
+        if (!chars.some(c => c.is_killer)) { errEl.textContent = '犯人キャラクターを1人指定してください'; errEl.style.display = 'block'; return false; }
         errEl.style.display = 'none';
         return true;
       }
       return true;
     }
 
+    // ── キャラクター ────────────────────────────────────────────────────────
+
     function addChar() {
       charCount++;
       const n = charCount;
       const div = document.createElement('div');
-      div.className = 'char-card';
-      div.id = 'char-' + n;
+      div.className = 'card'; div.id = 'char-' + n;
       div.innerHTML = `
-        <div class="char-card-header">
-          <span>キャラクター ${n}</span>
-          <button class="btn btn-ghost" onclick="removeEl('char-${n}')">削除</button>
-        </div>
+        <div class="card-header"><span>キャラクター ${n}</span><button class="btn btn-ghost" onclick="removeEl('char-${n}')">削除</button></div>
         <div class="field"><label>名前 *</label><input type="text" id="char-name-${n}" placeholder="例：田中一郎"></div>
-        <div class="field"><label>公開プロフィール *</label><textarea id="char-desc-${n}" rows="2" placeholder="例：山荘のオーナー。厳格な人物で、事件当夜は書斎にいたと主張する。"></textarea></div>
-        <div class="field"><label>秘密情報（本人のみDMで受け取る） *</label><textarea id="char-secret-${n}" rows="2" placeholder="例：実は被害者と金銭トラブルがあった。凶器のナイフを隠している。"></textarea></div>
-        <div class="char-check">
-          <input type="checkbox" id="char-killer-${n}">
-          <label for="char-killer-${n}">🔪 この人物が犯人</label>
-        </div>
+        <div class="field"><label>公開プロフィール *</label><textarea id="char-desc-${n}" rows="2" placeholder="例：山荘のオーナー。厳格な人物…"></textarea></div>
+        <div class="field"><label>秘密情報（本人のみDMで受け取る） *</label><textarea id="char-secret-${n}" rows="2" placeholder="例：被害者と金銭トラブルがあった…"></textarea></div>
+        <div class="char-check"><input type="checkbox" id="char-killer-${n}"><label for="char-killer-${n}">🔪 この人物が犯人</label></div>
       `;
       document.getElementById('chars').appendChild(div);
     }
 
-    function addClue() {
-      clueCount++;
-      const n = clueCount;
-      const div = document.createElement('div');
-      div.className = 'clue-card';
-      div.id = 'clue-' + n;
-      div.innerHTML = `
-        <div class="char-card-header">
-          <span>手がかり ${n}</span>
-          <button class="btn btn-ghost" onclick="removeEl('clue-${n}')">削除</button>
-        </div>
-        <div class="field"><label>名前 *</label><input type="text" id="clue-name-${n}" placeholder="例：血痕のついたナイフ"></div>
-        <div class="field"><label>調査結果（全員に公開） *</label><textarea id="clue-desc-${n}" rows="2" placeholder="例：台所の引き出しで発見。柄には指紋が残っている。血液型はA型。"></textarea></div>
-      `;
-      document.getElementById('clues').appendChild(div);
-    }
-
-    function removeEl(id) {
-      document.getElementById(id)?.remove();
-    }
-
     function collectChars() {
       const results = [];
-      document.querySelectorAll('.char-card').forEach(el => {
+      document.querySelectorAll('.card[id^="char-"]').forEach(el => {
         const n = el.id.replace('char-','');
         const name = document.getElementById('char-name-'+n)?.value.trim();
         const desc = document.getElementById('char-desc-'+n)?.value.trim();
@@ -237,9 +243,24 @@
       return results;
     }
 
+    // ── 手がかり ────────────────────────────────────────────────────────────
+
+    function addClue() {
+      clueCount++;
+      const n = clueCount;
+      const div = document.createElement('div');
+      div.className = 'card'; div.id = 'clue-' + n;
+      div.innerHTML = `
+        <div class="card-header"><span>手がかり ${n}</span><button class="btn btn-ghost" onclick="removeEl('clue-${n}')">削除</button></div>
+        <div class="field"><label>名前 *</label><input type="text" id="clue-name-${n}" placeholder="例：血痕のついたナイフ"></div>
+        <div class="field"><label>調査結果（全員に公開） *</label><textarea id="clue-desc-${n}" rows="2" placeholder="例：台所の引き出しで発見。柄に指紋あり。"></textarea></div>
+      `;
+      document.getElementById('clues').appendChild(div);
+    }
+
     function collectClues() {
       const results = [];
-      document.querySelectorAll('.clue-card').forEach(el => {
+      document.querySelectorAll('.card[id^="clue-"]').forEach(el => {
         const n = el.id.replace('clue-','');
         const name = document.getElementById('clue-name-'+n)?.value.trim();
         const desc = document.getElementById('clue-desc-'+n)?.value.trim();
@@ -248,8 +269,129 @@
       return results;
     }
 
+    // ── フェーズ ────────────────────────────────────────────────────────────
+
+    function addPhase(data = {}) {
+      phaseCount++;
+      const n = phaseCount;
+      const div = document.createElement('div');
+      div.className = 'phase-card'; div.id = 'phase-' + n;
+      div.dataset.order = document.querySelectorAll('.phase-card').length;
+
+      div.innerHTML = `
+        <div class="phase-card-header">
+          <span>フェーズ <span class="phase-num">${document.querySelectorAll('.phase-card').length + 1}</span></span>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <div class="phase-order-btns">
+              <button onclick="movePhase('phase-${n}', -1)" title="上へ">↑</button>
+              <button onclick="movePhase('phase-${n}', 1)" title="下へ">↓</button>
+            </div>
+            <button class="btn btn-ghost" onclick="removeEl('phase-${n}'); renumberPhases()">削除</button>
+          </div>
+        </div>
+        <div class="field">
+          <label>フェーズ名 *</label>
+          <input type="text" id="phase-name-${n}" placeholder="例：第1調査、議論、最終投票" value="${esc(data.name||'')}">
+        </div>
+        <div class="field">
+          <label>説明（フェーズ開始時に表示）</label>
+          <textarea id="phase-desc-${n}" rows="2" placeholder="例：各自の手がかりを調査してください。">${esc(data.description||'')}</textarea>
+        </div>
+        <div class="field">
+          <label>進行条件</label>
+          <select id="phase-type-${n}" onchange="updateCondFields(${n})">
+            <option value="manual"             ${(data.type||'manual')==='manual'?'selected':''}>GM手動（/game phase で進む）</option>
+            <option value="clues_investigated" ${data.type==='clues_investigated'?'selected':''}>手がかりN個調査したらGMが進められる</option>
+            <option value="all_players_ready"  ${data.type==='all_players_ready'?'selected':''}>全員が「準備完了」ボタンを押したら自動進行</option>
+            <option value="vote"               ${data.type==='vote'?'selected':''}>投票（全員投票完了で集計・判定）</option>
+          </select>
+        </div>
+        <div id="phase-cond-${n}" class="cond-fields" style="display:none;"></div>
+      `;
+      document.getElementById('phases').appendChild(div);
+      updateCondFields(n, data);
+    }
+
+    function updateCondFields(n, data = {}) {
+      const type = document.getElementById('phase-type-' + n).value;
+      const container = document.getElementById('phase-cond-' + n);
+      container.innerHTML = '';
+
+      if (type === 'clues_investigated') {
+        container.style.display = 'block';
+        container.innerHTML = `
+          <label>必要な手がかり調査数</label>
+          <input type="number" id="phase-cv-${n}" min="1" value="${data.condition_value||1}" style="width:100px;">
+        `;
+      } else if (type === 'vote') {
+        const phases = document.querySelectorAll('.phase-card');
+        const phaseOptions = [...phases].map((p, i) => {
+          const name = p.querySelector('[id^="phase-name-"]')?.value || `フェーズ ${i+1}`;
+          return `<option value="${i}" ${data.on_fail_phase_index===i?'selected':''}>${i}: ${esc(name)}</option>`;
+        }).join('');
+
+        container.style.display = 'block';
+        container.innerHTML = `
+          <div class="row2">
+            <div>
+              <label>過半数の閾値（%）</label>
+              <input type="number" id="phase-cv-${n}" min="1" max="100" value="${data.condition_value||51}">
+            </div>
+            <div>
+              <label>未達時に戻るフェーズ（0始まり）</label>
+              <input type="number" id="phase-fail-${n}" min="0" value="${data.on_fail_phase_index ?? ''}">
+            </div>
+          </div>
+          <div class="hint" style="margin-top:8px;">未達時のフェーズ番号が空の場合は次のフェーズに進みます。</div>
+        `;
+      } else {
+        container.style.display = 'none';
+      }
+    }
+
+    function movePhase(id, dir) {
+      const el = document.getElementById(id);
+      const parent = el.parentNode;
+      const cards = [...parent.querySelectorAll('.phase-card')];
+      const idx = cards.indexOf(el);
+      const target = cards[idx + dir];
+      if (!target) return;
+      if (dir === -1) parent.insertBefore(el, target);
+      else parent.insertBefore(target, el);
+      renumberPhases();
+    }
+
+    function renumberPhases() {
+      document.querySelectorAll('.phase-card').forEach((p, i) => {
+        const numEl = p.querySelector('.phase-num');
+        if (numEl) numEl.textContent = i + 1;
+      });
+    }
+
+    function collectPhases() {
+      const results = [];
+      document.querySelectorAll('.phase-card').forEach(el => {
+        const n = el.id.replace('phase-', '');
+        const name = document.getElementById('phase-name-'+n)?.value.trim();
+        const desc = document.getElementById('phase-desc-'+n)?.value.trim() || '';
+        const type = document.getElementById('phase-type-'+n)?.value || 'manual';
+        const cv = Number(document.getElementById('phase-cv-'+n)?.value) || 0;
+        const fail = document.getElementById('phase-fail-'+n);
+        const failVal = fail && fail.value !== '' ? Number(fail.value) : null;
+        if (name) results.push({ name, description: desc, type, condition_value: cv, on_fail_phase_index: failVal });
+      });
+      return results;
+    }
+
+    // ── 共通 ────────────────────────────────────────────────────────────────
+
+    function removeEl(id) { document.getElementById(id)?.remove(); }
+
+    function esc(s) {
+      return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
     async function submit() {
-      if (!validate(1) || !validate(2)) { goTo(validate(1) ? 2 : 1); return; }
       const errEl = document.getElementById('submit-error');
       errEl.style.display = 'none';
 
@@ -259,7 +401,11 @@
         answer: document.getElementById('answer').value.trim(),
         characters: collectChars(),
         clues: collectClues(),
+        phases: collectPhases(),
       };
+
+      if (!payload.title || !payload.overview || !payload.answer) { goTo(1); return; }
+      if (payload.characters.length < 2 || !payload.characters.some(c => c.is_killer)) { goTo(2); return; }
 
       try {
         const res = await fetch('/scenarios/api', {
@@ -269,7 +415,7 @@
         });
         const data = await res.json();
         if (!res.ok) { errEl.textContent = data.error || 'エラーが発生しました'; errEl.style.display = 'block'; return; }
-        document.getElementById('sec-3').style.display = 'none';
+        document.getElementById('sec-4').style.display = 'none';
         document.getElementById('success').style.display = 'block';
         document.getElementById('success-id').textContent = 'シナリオID: ' + data.id;
       } catch (e) {
@@ -277,8 +423,17 @@
       }
     }
 
-    // Initialize with 2 characters by default
+    // 初期キャラクター2人
     addChar(); addChar();
+
+    // デフォルトフェーズ4つ（参考として追加済み状態で表示）
+    const DEFAULT_PHASES = [
+      { name: '導入', description: '各自の役割カードを確認してください。', type: 'manual' },
+      { name: '調査', description: '/game investigate で手がかりを調査しましょう。', type: 'clues_investigated', condition_value: 1 },
+      { name: '議論', description: '情報を整理して犯人を議論してください。', type: 'manual' },
+      { name: '投票', description: '/game vote で犯人に投票してください。', type: 'vote', condition_value: 51, on_fail_phase_index: 2 },
+    ];
+    DEFAULT_PHASES.forEach(p => addPhase(p));
   </script>
 </body>
 </html>

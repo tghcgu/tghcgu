@@ -22,20 +22,7 @@ module.exports = {
       sub.setName('begin').setDescription('【GM専用】参加者への役割配布とゲーム開始')
     )
     .addSubcommand((sub) =>
-      sub
-        .setName('phase')
-        .setDescription('【GM専用】ゲームフェーズを進める')
-        .addStringOption((opt) =>
-          opt
-            .setName('next')
-            .setDescription('次のフェーズ')
-            .setRequired(true)
-            .addChoices(
-              { name: '調査フェーズへ', value: 'investigation' },
-              { name: '議論フェーズへ', value: 'discussion' },
-              { name: '投票フェーズへ', value: 'voting' }
-            )
-        )
+      sub.setName('phase').setDescription('【GM専用】現在のフェーズ条件を満たしていれば次のフェーズへ進む')
     )
     .addSubcommand((sub) =>
       sub
@@ -83,6 +70,7 @@ module.exports = {
         });
       }
 
+      const phases = db.getPhases(scenarioId);
       const sessionId = db.createSession({
         scenario_id: scenarioId,
         guild_id: interaction.guildId,
@@ -90,7 +78,7 @@ module.exports = {
         gm_id: interaction.user.id,
       });
 
-      await gameManager.sendRecruitEmbed(interaction, sessionId, scenario, characters.length);
+      await gameManager.sendRecruitEmbed(interaction, sessionId, scenario, characters.length, phases);
       return;
     }
 
@@ -107,9 +95,7 @@ module.exports = {
       }
 
       db.addPlayer({ session_id: session.id, user_id: interaction.user.id, character_id: 0 });
-      return interaction.reply({
-        content: `✅ <@${interaction.user.id}> が参加登録しました！`,
-      });
+      return interaction.reply({ content: `✅ <@${interaction.user.id}> が参加登録しました！` });
     }
 
     if (sub === 'begin') {
@@ -137,22 +123,26 @@ module.exports = {
       if (session.gm_id !== interaction.user.id) {
         return interaction.reply({ content: 'このコマンドはGMのみ使用できます。', ephemeral: true });
       }
+      if (session.status !== 'playing') {
+        return interaction.reply({ content: 'ゲームが進行中ではありません。', ephemeral: true });
+      }
 
-      const nextPhase = interaction.options.getString('next');
-      await phaseController.moveToPhase(interaction, session, nextPhase);
+      await phaseController.tryAdvancePhase(interaction, session);
       return;
     }
 
     if (sub === 'investigate') {
       const session = db.getActiveSession(interaction.channelId);
-      if (!session) {
+      if (!session || session.status !== 'playing') {
         return interaction.reply({ content: 'このチャンネルに進行中のゲームはありません。', ephemeral: true });
-      }
-      if (session.phase !== 'investigation') {
-        return interaction.reply({ content: '現在は調査フェーズではありません。', ephemeral: true });
       }
       if (!db.isPlayerInSession(session.id, interaction.user.id)) {
         return interaction.reply({ content: 'あなたはこのゲームの参加者ではありません。', ephemeral: true });
+      }
+
+      const phase = phaseController.getCurrentPhase(session);
+      if (!phase || (phase.type !== 'clues_investigated' && phase.type !== 'manual')) {
+        return interaction.reply({ content: '現在のフェーズでは手がかりの調査はできません。', ephemeral: true });
       }
 
       const clueId = interaction.options.getInteger('clue_id');
@@ -167,15 +157,19 @@ module.exports = {
       }
 
       await phaseController.announceClue(interaction, clue);
+      // 条件チェック（自動進行通知）
+      await phaseController.checkClueCondition(interaction.channel, session);
       return;
     }
 
     if (sub === 'vote') {
       const session = db.getActiveSession(interaction.channelId);
-      if (!session) {
+      if (!session || session.status !== 'playing') {
         return interaction.reply({ content: 'このチャンネルに進行中のゲームはありません。', ephemeral: true });
       }
-      if (session.phase !== 'voting') {
+
+      const phase = phaseController.getCurrentPhase(session);
+      if (!phase || phase.type !== 'vote') {
         return interaction.reply({ content: '現在は投票フェーズではありません。', ephemeral: true });
       }
       if (!db.isPlayerInSession(session.id, interaction.user.id)) {
@@ -187,15 +181,7 @@ module.exports = {
         return interaction.reply({ content: `<@${target.id}> はこのゲームの参加者ではありません。`, ephemeral: true });
       }
 
-      db.addVote({ session_id: session.id, voter_id: interaction.user.id, target_id: target.id });
-      await interaction.reply({ content: `🗳️ <@${interaction.user.id}> が投票しました。` });
-
-      // Check if all players have voted
-      const players = db.getPlayers(session.id);
-      const votes = db.getVotes(session.id);
-      if (votes.length >= players.length) {
-        await phaseController.revealResults(interaction, session);
-      }
+      await phaseController.handleVote(interaction, session, target);
       return;
     }
 
@@ -204,7 +190,6 @@ module.exports = {
       if (!session) {
         return interaction.reply({ content: 'このチャンネルに進行中のゲームはありません。', ephemeral: true });
       }
-
       await phaseController.showStatus(interaction, session);
       return;
     }

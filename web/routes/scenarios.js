@@ -26,7 +26,8 @@ router.get('/api/list', (req, res) => {
   const result = scenarios.map((s) => {
     const characters = db.getCharacters(s.id);
     const clues = db.getClues(s.id);
-    return { ...s, character_count: characters.length, clue_count: clues.length };
+    const phases = db.getPhases(s.id);
+    return { ...s, character_count: characters.length, clue_count: clues.length, phase_count: phases.length };
   });
   res.json(result);
 });
@@ -37,12 +38,13 @@ router.get('/api/:id(\\d+)', (req, res) => {
   if (!scenario) return res.status(404).json({ error: 'Not found' });
   const characters = db.getCharacters(scenario.id);
   const clues = db.getClues(scenario.id);
-  res.json({ ...scenario, characters, clues });
+  const phases = db.getPhases(scenario.id);
+  res.json({ ...scenario, characters, clues, phases });
 });
 
-// POST /scenarios/api — create scenario with characters + clues
+// POST /scenarios/api — create scenario with characters, clues, phases
 router.post('/api', (req, res) => {
-  const { title, overview, answer, characters = [], clues = [] } = req.body;
+  const { title, overview, answer, characters = [], clues = [], phases = [] } = req.body;
 
   if (!title || !overview || !answer) {
     return res.status(400).json({ error: 'title, overview, answer は必須です' });
@@ -50,8 +52,7 @@ router.post('/api', (req, res) => {
   if (characters.length < 2) {
     return res.status(400).json({ error: 'キャラクターは最低2人必要です' });
   }
-  const hasKiller = characters.some((c) => c.is_killer);
-  if (!hasKiller) {
+  if (!characters.some((c) => c.is_killer)) {
     return res.status(400).json({ error: '犯人キャラクターを1人指定してください' });
   }
 
@@ -77,12 +78,27 @@ router.post('/api', (req, res) => {
     db.addClue({ scenario_id: scenarioId, name: clue.name, description: clue.description });
   }
 
+  // フェーズが指定されていない場合はデフォルト（DBに保存しない = DEFAULT_PHASESを使用）
+  if (phases.length > 0) {
+    for (let i = 0; i < phases.length; i++) {
+      const p = phases[i];
+      db.addPhase({
+        scenario_id: scenarioId,
+        order_index: i,
+        name: p.name,
+        description: p.description,
+        type: p.type || 'manual',
+        condition_value: Number(p.condition_value) || 0,
+        on_fail_phase_index: p.on_fail_phase_index != null ? Number(p.on_fail_phase_index) : null,
+      });
+    }
+  }
+
   res.json({ id: scenarioId });
 });
 
 // DELETE /scenarios/api/:id
 router.delete('/api/:id(\\d+)', (req, res) => {
-  // Web-created scenarios have creator_id='web', allow deletion from web UI
   db.deleteScenario(Number(req.params.id), 'web');
   res.json({ ok: true });
 });

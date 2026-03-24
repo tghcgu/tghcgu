@@ -4,7 +4,6 @@ const fs = require('fs');
 
 const DB_PATH = path.join(__dirname, '../../data/murder_mystery.db');
 
-// Ensure data directory exists
 const dataDir = path.dirname(DB_PATH);
 if (!fs.existsSync(dataDir)) {
   fs.mkdirSync(dataDir, { recursive: true });
@@ -14,7 +13,6 @@ const db = new Database(DB_PATH);
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
 
-// Initialize tables
 db.exec(`
   CREATE TABLE IF NOT EXISTS scenarios (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -44,6 +42,20 @@ db.exec(`
     FOREIGN KEY (scenario_id) REFERENCES scenarios(id) ON DELETE CASCADE
   );
 
+  -- フェーズ定義（シナリオごとにカスタマイズ可能）
+  -- type: manual | clues_investigated | all_players_ready | vote
+  CREATE TABLE IF NOT EXISTS phases (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    scenario_id INTEGER NOT NULL,
+    order_index INTEGER NOT NULL,
+    name TEXT NOT NULL,
+    description TEXT NOT NULL,
+    type TEXT NOT NULL DEFAULT 'manual',
+    condition_value INTEGER DEFAULT 0,
+    on_fail_phase_index INTEGER DEFAULT NULL,
+    FOREIGN KEY (scenario_id) REFERENCES scenarios(id) ON DELETE CASCADE
+  );
+
   CREATE TABLE IF NOT EXISTS game_sessions (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     scenario_id INTEGER NOT NULL,
@@ -51,7 +63,7 @@ db.exec(`
     channel_id TEXT NOT NULL,
     gm_id TEXT NOT NULL,
     status TEXT DEFAULT 'waiting',
-    phase TEXT DEFAULT 'intro',
+    phase_index INTEGER DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (scenario_id) REFERENCES scenarios(id)
   );
@@ -68,6 +80,7 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS votes (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     session_id INTEGER NOT NULL,
+    phase_index INTEGER NOT NULL DEFAULT 0,
     voter_id TEXT NOT NULL,
     target_id TEXT NOT NULL,
     FOREIGN KEY (session_id) REFERENCES game_sessions(id) ON DELETE CASCADE
@@ -81,7 +94,25 @@ db.exec(`
     FOREIGN KEY (session_id) REFERENCES game_sessions(id) ON DELETE CASCADE,
     FOREIGN KEY (clue_id) REFERENCES clues(id)
   );
+
+  -- all_players_ready 条件用：各フェーズで「準備完了」を押したプレイヤー
+  CREATE TABLE IF NOT EXISTS session_ready_players (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id INTEGER NOT NULL,
+    phase_index INTEGER NOT NULL,
+    user_id TEXT NOT NULL,
+    FOREIGN KEY (session_id) REFERENCES game_sessions(id) ON DELETE CASCADE
+  );
 `);
+
+// ── デフォルトフェーズ定義 ─────────────────────────────────────────────────
+// シナリオにフェーズが定義されていない場合に使用
+const DEFAULT_PHASES = [
+  { order_index: 0, name: '導入',   description: '各自の役割カードを確認してください。',            type: 'manual',              condition_value: 0, on_fail_phase_index: null },
+  { order_index: 1, name: '調査',   description: '/game investigate で手がかりを調査しましょう。',  type: 'clues_investigated',  condition_value: 1, on_fail_phase_index: null },
+  { order_index: 2, name: '議論',   description: '情報を整理して犯人を議論してください。',            type: 'manual',              condition_value: 0, on_fail_phase_index: null },
+  { order_index: 3, name: '投票',   description: '/game vote で犯人に投票してください。',             type: 'vote',                condition_value: 51, on_fail_phase_index: 2 },
+];
 
 // ── Scenario CRUD ──────────────────────────────────────────────────────────
 
@@ -99,13 +130,33 @@ function getScenario(id) {
 
 function listScenarios(guild_id = null) {
   if (guild_id) {
-    return db.prepare('SELECT * FROM scenarios WHERE guild_id = ? OR guild_id = \'web\' ORDER BY created_at DESC').all(guild_id);
+    return db.prepare("SELECT * FROM scenarios WHERE guild_id = ? OR guild_id = 'web' ORDER BY created_at DESC").all(guild_id);
   }
   return db.prepare('SELECT * FROM scenarios ORDER BY created_at DESC').all();
 }
 
 function deleteScenario(id, creator_id) {
   return db.prepare('DELETE FROM scenarios WHERE id = ? AND creator_id = ?').run(id, creator_id);
+}
+
+// ── Phase CRUD ─────────────────────────────────────────────────────────────
+
+function addPhase({ scenario_id, order_index, name, description, type = 'manual', condition_value = 0, on_fail_phase_index = null }) {
+  const stmt = db.prepare(
+    'INSERT INTO phases (scenario_id, order_index, name, description, type, condition_value, on_fail_phase_index) VALUES (?, ?, ?, ?, ?, ?, ?)'
+  );
+  const result = stmt.run(scenario_id, order_index, name, description, type, condition_value, on_fail_phase_index ?? null);
+  return result.lastInsertRowid;
+}
+
+function getPhases(scenario_id) {
+  const phases = db.prepare('SELECT * FROM phases WHERE scenario_id = ? ORDER BY order_index').all(scenario_id);
+  if (phases.length === 0) return DEFAULT_PHASES.map((p, i) => ({ ...p, id: -(i + 1), scenario_id }));
+  return phases;
+}
+
+function deletePhases(scenario_id) {
+  db.prepare('DELETE FROM phases WHERE scenario_id = ?').run(scenario_id);
 }
 
 // ── Character CRUD ─────────────────────────────────────────────────────────
@@ -207,15 +258,13 @@ function isPlayerInSession(session_id, user_id) {
 
 // ── Votes ──────────────────────────────────────────────────────────────────
 
-function addVote({ session_id, voter_id, target_id }) {
-  // Upsert: one vote per player
-  db.prepare('DELETE FROM votes WHERE session_id = ? AND voter_id = ?').run(session_id, voter_id);
-  const stmt = db.prepare('INSERT INTO votes (session_id, voter_id, target_id) VALUES (?, ?, ?)');
-  stmt.run(session_id, voter_id, target_id);
+function addVote({ session_id, phase_index, voter_id, target_id }) {
+  db.prepare('DELETE FROM votes WHERE session_id = ? AND phase_index = ? AND voter_id = ?').run(session_id, phase_index, voter_id);
+  db.prepare('INSERT INTO votes (session_id, phase_index, voter_id, target_id) VALUES (?, ?, ?, ?)').run(session_id, phase_index, voter_id, target_id);
 }
 
-function getVotes(session_id) {
-  return db.prepare('SELECT * FROM votes WHERE session_id = ?').all(session_id);
+function getVotes(session_id, phase_index) {
+  return db.prepare('SELECT * FROM votes WHERE session_id = ? AND phase_index = ?').all(session_id, phase_index);
 }
 
 // ── Revealed Clues ─────────────────────────────────────────────────────────
@@ -237,28 +286,28 @@ function getRevealedClues(session_id) {
     .all(session_id);
 }
 
+// ── Ready Players ──────────────────────────────────────────────────────────
+
+function setReady(session_id, phase_index, user_id) {
+  const exists = db.prepare('SELECT 1 FROM session_ready_players WHERE session_id = ? AND phase_index = ? AND user_id = ?').get(session_id, phase_index, user_id);
+  if (exists) return false;
+  db.prepare('INSERT INTO session_ready_players (session_id, phase_index, user_id) VALUES (?, ?, ?)').run(session_id, phase_index, user_id);
+  return true;
+}
+
+function getReadyPlayers(session_id, phase_index) {
+  return db.prepare('SELECT * FROM session_ready_players WHERE session_id = ? AND phase_index = ?').all(session_id, phase_index);
+}
+
 module.exports = {
   db,
-  createScenario,
-  getScenario,
-  listScenarios,
-  deleteScenario,
-  addCharacter,
-  getCharacters,
-  getCharacter,
-  addClue,
-  getClues,
-  getClue,
-  createSession,
-  getSession,
-  getActiveSession,
-  updateSession,
-  addPlayer,
-  getPlayers,
-  getPlayerByUser,
-  isPlayerInSession,
-  addVote,
-  getVotes,
-  revealClue,
-  getRevealedClues,
+  createScenario, getScenario, listScenarios, deleteScenario,
+  addPhase, getPhases, deletePhases, DEFAULT_PHASES,
+  addCharacter, getCharacters, getCharacter,
+  addClue, getClues, getClue,
+  createSession, getSession, getActiveSession, updateSession,
+  addPlayer, getPlayers, getPlayerByUser, isPlayerInSession,
+  addVote, getVotes,
+  revealClue, getRevealedClues,
+  setReady, getReadyPlayers,
 };
