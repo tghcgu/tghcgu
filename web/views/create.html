@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>シナリオを作成 — マーダーミステリー</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', sans-serif; background: #1a1a2e; color: #e0e0e0; min-height: 100vh; }
+    header { background: #16213e; padding: 20px 32px; display: flex; align-items: center; gap: 16px; border-bottom: 2px solid #5865f2; }
+    header a { color: #aaa; text-decoration: none; font-size: 0.9rem; }
+    header a:hover { color: #fff; }
+    header h1 { font-size: 1.4rem; color: #fff; }
+    main { max-width: 760px; margin: 40px auto; padding: 0 20px 80px; }
+
+    /* Step indicators */
+    .steps { display: flex; gap: 8px; margin-bottom: 36px; }
+    .step { flex: 1; padding: 10px; text-align: center; border-radius: 8px; font-size: 0.85rem; font-weight: 600; background: #16213e; color: #555; border: 2px solid transparent; transition: all 0.2s; }
+    .step.active { border-color: #5865f2; color: #5865f2; }
+    .step.done { background: #5865f2; color: #fff; }
+
+    .section { display: none; }
+    .section.visible { display: block; }
+
+    h2 { font-size: 1.2rem; margin-bottom: 20px; color: #fff; }
+    label { display: block; margin-bottom: 6px; font-size: 0.85rem; color: #bbb; }
+    input[type=text], textarea, select {
+      width: 100%; padding: 10px 14px; border-radius: 8px;
+      border: 1px solid #2d2d5e; background: #0f0f23; color: #e0e0e0;
+      font-size: 0.95rem; font-family: inherit; resize: vertical;
+    }
+    input[type=text]:focus, textarea:focus { outline: none; border-color: #5865f2; }
+    .field { margin-bottom: 18px; }
+    .hint { font-size: 0.75rem; color: #666; margin-top: 4px; }
+
+    .btn { display: inline-block; padding: 10px 22px; border-radius: 8px; font-size: 0.95rem; font-weight: 600; cursor: pointer; border: none; transition: opacity 0.2s; }
+    .btn-primary { background: #5865f2; color: #fff; }
+    .btn-primary:hover { opacity: 0.85; }
+    .btn-secondary { background: #2d2d5e; color: #ccc; }
+    .btn-secondary:hover { background: #3d3d7e; }
+    .btn-ghost { background: transparent; color: #ed4245; border: 1px solid #ed4245; padding: 6px 14px; font-size: 0.8rem; }
+    .btn-ghost:hover { background: #ed4245; color: #fff; }
+    .btn-add { background: #23234d; color: #5865f2; border: 1px dashed #5865f2; width: 100%; padding: 10px; border-radius: 8px; margin-top: 8px; cursor: pointer; font-size: 0.9rem; }
+    .btn-add:hover { background: #2d2d6e; }
+
+    .char-card, .clue-card {
+      background: #16213e; border: 1px solid #2d2d5e; border-radius: 10px;
+      padding: 16px; margin-bottom: 14px;
+    }
+    .char-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+    .char-card-header span { font-weight: 600; color: #ccc; }
+    .char-check { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+    .char-check input { width: auto; }
+    .char-check label { margin: 0; color: #ed4245; font-weight: 600; font-size: 0.9rem; }
+
+    .nav-btns { display: flex; gap: 12px; margin-top: 28px; }
+
+    .error { color: #ed4245; font-size: 0.85rem; margin-top: 8px; display: none; }
+    #submit-error { color: #ed4245; margin-bottom: 12px; display: none; }
+    #success { background: #1e3a1e; border: 1px solid #4caf50; padding: 20px; border-radius: 10px; text-align: center; display: none; }
+    #success h2 { color: #4caf50; }
+    #success p { margin-top: 8px; color: #aaa; }
+    #success .scenario-id { font-size: 1.8rem; font-weight: bold; color: #5865f2; margin: 12px 0; }
+    #success a { color: #5865f2; }
+  </style>
+</head>
+<body>
+  <header>
+    <a href="/scenarios">← 一覧に戻る</a>
+    <h1>🔪 シナリオを作成</h1>
+  </header>
+  <main>
+    <div class="steps">
+      <div class="step active" id="step-1">1. 基本情報</div>
+      <div class="step" id="step-2">2. キャラクター</div>
+      <div class="step" id="step-3">3. 手がかり</div>
+    </div>
+
+    <!-- STEP 1: 基本情報 -->
+    <div class="section visible" id="sec-1">
+      <h2>事件の基本情報</h2>
+      <div class="field">
+        <label>タイトル *</label>
+        <input type="text" id="title" placeholder="例：雪山荘の殺人">
+        <div class="error" id="err-title">タイトルを入力してください</div>
+      </div>
+      <div class="field">
+        <label>概要（全プレイヤーに公開） *</label>
+        <textarea id="overview" rows="4" placeholder="例：孤立した山荘で朝、参加者の一人が死体で発見された。犯人はこの中にいる…"></textarea>
+        <div class="error" id="err-overview">概要を入力してください</div>
+      </div>
+      <div class="field">
+        <label>真相（ゲーム終了後に公開） *</label>
+        <textarea id="answer" rows="4" placeholder="例：犯人は◯◯。動機は…"></textarea>
+        <div class="hint">⚠️ プレイ中は公開されません。ゲーム終了後の「結末」として表示されます。</div>
+        <div class="error" id="err-answer">真相を入力してください</div>
+      </div>
+      <div class="nav-btns">
+        <button class="btn btn-primary" onclick="goTo(2)">次へ →</button>
+      </div>
+    </div>
+
+    <!-- STEP 2: キャラクター -->
+    <div class="section" id="sec-2">
+      <h2>キャラクター（最低2人・犯人1人必須）</h2>
+      <div id="chars"></div>
+      <button class="btn-add" onclick="addChar()">＋ キャラクターを追加</button>
+      <div class="error" id="err-chars" style="display:none;"></div>
+      <div class="nav-btns">
+        <button class="btn btn-secondary" onclick="goTo(1)">← 戻る</button>
+        <button class="btn btn-primary" onclick="goTo(3)">次へ →</button>
+      </div>
+    </div>
+
+    <!-- STEP 3: 手がかり -->
+    <div class="section" id="sec-3">
+      <h2>手がかり（任意・複数追加可）</h2>
+      <div id="clues"></div>
+      <button class="btn-add" onclick="addClue()">＋ 手がかりを追加</button>
+      <div class="nav-btns">
+        <button class="btn btn-secondary" onclick="goTo(2)">← 戻る</button>
+        <div>
+          <div id="submit-error"></div>
+          <button class="btn btn-primary" onclick="submit()">✓ シナリオを保存</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 成功 -->
+    <div id="success">
+      <h2>✅ シナリオを保存しました！</h2>
+      <div class="scenario-id" id="success-id"></div>
+      <p>上記のシナリオIDをDiscordで使用します。</p>
+      <p style="margin-top:8px;"><code>/game start &lt;scenario_id&gt;</code> でゲームを開始できます。</p>
+      <p style="margin-top:16px;"><a href="/scenarios">← 一覧に戻る</a> ｜ <a href="/scenarios/create">もう一つ作成する</a></p>
+    </div>
+  </main>
+
+  <script>
+    let charCount = 0;
+    let clueCount = 0;
+    let currentStep = 1;
+
+    function goTo(step) {
+      if (step > currentStep && !validate(currentStep)) return;
+      document.getElementById('sec-' + currentStep).classList.remove('visible');
+      document.getElementById('step-' + currentStep).classList.remove('active');
+      document.getElementById('step-' + currentStep).classList.add('done');
+      currentStep = step;
+      document.getElementById('sec-' + step).classList.add('visible');
+      document.getElementById('step-' + step).classList.add('active');
+      document.getElementById('step-' + step).classList.remove('done');
+      window.scrollTo(0, 0);
+    }
+
+    function validate(step) {
+      if (step === 1) {
+        let ok = true;
+        ['title','overview','answer'].forEach(id => {
+          const val = document.getElementById(id).value.trim();
+          const err = document.getElementById('err-' + id);
+          if (!val) { err.style.display = 'block'; ok = false; }
+          else { err.style.display = 'none'; }
+        });
+        return ok;
+      }
+      if (step === 2) {
+        const errEl = document.getElementById('err-chars');
+        const chars = collectChars();
+        if (chars.length < 2) {
+          errEl.textContent = 'キャラクターを最低2人追加してください';
+          errEl.style.display = 'block'; return false;
+        }
+        if (!chars.some(c => c.is_killer)) {
+          errEl.textContent = '犯人キャラクターを1人指定してください（チェックボックス）';
+          errEl.style.display = 'block'; return false;
+        }
+        errEl.style.display = 'none';
+        return true;
+      }
+      return true;
+    }
+
+    function addChar() {
+      charCount++;
+      const n = charCount;
+      const div = document.createElement('div');
+      div.className = 'char-card';
+      div.id = 'char-' + n;
+      div.innerHTML = `
+        <div class="char-card-header">
+          <span>キャラクター ${n}</span>
+          <button class="btn btn-ghost" onclick="removeEl('char-${n}')">削除</button>
+        </div>
+        <div class="field"><label>名前 *</label><input type="text" id="char-name-${n}" placeholder="例：田中一郎"></div>
+        <div class="field"><label>公開プロフィール *</label><textarea id="char-desc-${n}" rows="2" placeholder="例：山荘のオーナー。厳格な人物で、事件当夜は書斎にいたと主張する。"></textarea></div>
+        <div class="field"><label>秘密情報（本人のみDMで受け取る） *</label><textarea id="char-secret-${n}" rows="2" placeholder="例：実は被害者と金銭トラブルがあった。凶器のナイフを隠している。"></textarea></div>
+        <div class="char-check">
+          <input type="checkbox" id="char-killer-${n}">
+          <label for="char-killer-${n}">🔪 この人物が犯人</label>
+        </div>
+      `;
+      document.getElementById('chars').appendChild(div);
+    }
+
+    function addClue() {
+      clueCount++;
+      const n = clueCount;
+      const div = document.createElement('div');
+      div.className = 'clue-card';
+      div.id = 'clue-' + n;
+      div.innerHTML = `
+        <div class="char-card-header">
+          <span>手がかり ${n}</span>
+          <button class="btn btn-ghost" onclick="removeEl('clue-${n}')">削除</button>
+        </div>
+        <div class="field"><label>名前 *</label><input type="text" id="clue-name-${n}" placeholder="例：血痕のついたナイフ"></div>
+        <div class="field"><label>調査結果（全員に公開） *</label><textarea id="clue-desc-${n}" rows="2" placeholder="例：台所の引き出しで発見。柄には指紋が残っている。血液型はA型。"></textarea></div>
+      `;
+      document.getElementById('clues').appendChild(div);
+    }
+
+    function removeEl(id) {
+      document.getElementById(id)?.remove();
+    }
+
+    function collectChars() {
+      const results = [];
+      document.querySelectorAll('.char-card').forEach(el => {
+        const n = el.id.replace('char-','');
+        const name = document.getElementById('char-name-'+n)?.value.trim();
+        const desc = document.getElementById('char-desc-'+n)?.value.trim();
+        const secret = document.getElementById('char-secret-'+n)?.value.trim();
+        const killer = document.getElementById('char-killer-'+n)?.checked;
+        if (name && desc && secret) results.push({ name, description: desc, secret, is_killer: killer });
+      });
+      return results;
+    }
+
+    function collectClues() {
+      const results = [];
+      document.querySelectorAll('.clue-card').forEach(el => {
+        const n = el.id.replace('clue-','');
+        const name = document.getElementById('clue-name-'+n)?.value.trim();
+        const desc = document.getElementById('clue-desc-'+n)?.value.trim();
+        if (name && desc) results.push({ name, description: desc });
+      });
+      return results;
+    }
+
+    async function submit() {
+      if (!validate(1) || !validate(2)) { goTo(validate(1) ? 2 : 1); return; }
+      const errEl = document.getElementById('submit-error');
+      errEl.style.display = 'none';
+
+      const payload = {
+        title: document.getElementById('title').value.trim(),
+        overview: document.getElementById('overview').value.trim(),
+        answer: document.getElementById('answer').value.trim(),
+        characters: collectChars(),
+        clues: collectClues(),
+      };
+
+      try {
+        const res = await fetch('/scenarios/api', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const data = await res.json();
+        if (!res.ok) { errEl.textContent = data.error || 'エラーが発生しました'; errEl.style.display = 'block'; return; }
+        document.getElementById('sec-3').style.display = 'none';
+        document.getElementById('success').style.display = 'block';
+        document.getElementById('success-id').textContent = 'シナリオID: ' + data.id;
+      } catch (e) {
+        errEl.textContent = 'サーバーへの接続に失敗しました'; errEl.style.display = 'block';
+      }
+    }
+
+    // Initialize with 2 characters by default
+    addChar(); addChar();
+  </script>
+</body>
+</html>

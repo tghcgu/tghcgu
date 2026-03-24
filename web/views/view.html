@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>シナリオ詳細 — マーダーミステリー</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', sans-serif; background: #1a1a2e; color: #e0e0e0; min-height: 100vh; }
+    header { background: #16213e; padding: 20px 32px; display: flex; align-items: center; gap: 16px; border-bottom: 2px solid #5865f2; }
+    header a { color: #aaa; text-decoration: none; font-size: 0.9rem; }
+    header a:hover { color: #fff; }
+    header h1 { font-size: 1.3rem; color: #fff; }
+    main { max-width: 800px; margin: 40px auto; padding: 0 20px 80px; }
+    .badge { display: inline-block; background: #5865f2; color: #fff; padding: 3px 10px; border-radius: 12px; font-size: 0.75rem; font-weight: 600; margin-bottom: 12px; }
+    h2 { font-size: 1.8rem; color: #fff; margin-bottom: 10px; }
+    .meta { color: #666; font-size: 0.8rem; margin-bottom: 24px; }
+    section { background: #16213e; border: 1px solid #2d2d5e; border-radius: 12px; padding: 20px; margin-bottom: 20px; }
+    section h3 { font-size: 1rem; color: #5865f2; margin-bottom: 12px; }
+    section p { line-height: 1.7; color: #ccc; white-space: pre-wrap; }
+    .char-list { display: grid; gap: 14px; }
+    .char { background: #0f0f23; border-radius: 8px; padding: 14px; }
+    .char-name { font-weight: 700; color: #fff; font-size: 1rem; margin-bottom: 6px; }
+    .char-killer { color: #ed4245; font-size: 0.75rem; font-weight: 700; margin-left: 8px; }
+    .char-desc { color: #aaa; font-size: 0.9rem; line-height: 1.5; }
+    .clue-list { display: grid; gap: 12px; }
+    .clue { background: #0f0f23; border-radius: 8px; padding: 12px 14px; }
+    .clue-name { font-weight: 600; color: #ffe066; margin-bottom: 4px; font-size: 0.9rem; }
+    .clue-desc { color: #aaa; font-size: 0.85rem; line-height: 1.5; }
+    .spoiler { filter: blur(5px); cursor: pointer; transition: filter 0.3s; user-select: none; }
+    .spoiler:hover, .spoiler.revealed { filter: none; }
+    .spoiler-hint { font-size: 0.75rem; color: #666; margin-top: 6px; }
+    .discord-box { background: #0f0f23; border: 1px solid #5865f2; border-radius: 10px; padding: 16px; margin-top: 8px; }
+    .discord-box code { color: #5865f2; font-size: 1rem; }
+    #loading { text-align: center; color: #888; margin-top: 60px; }
+  </style>
+</head>
+<body>
+  <header>
+    <a href="/scenarios">← 一覧に戻る</a>
+    <h1 id="h-title">読み込み中…</h1>
+  </header>
+  <main id="loading">読み込み中...</main>
+  <main id="content" style="display:none;">
+    <div class="badge" id="s-id"></div>
+    <h2 id="s-title"></h2>
+    <p class="meta" id="s-meta"></p>
+
+    <section>
+      <h3>📖 事件概要</h3>
+      <p id="s-overview"></p>
+    </section>
+
+    <section>
+      <h3>👥 登場キャラクター</h3>
+      <div class="char-list" id="s-chars"></div>
+    </section>
+
+    <section>
+      <h3>🔍 手がかり一覧</h3>
+      <div class="clue-list" id="s-clues"></div>
+    </section>
+
+    <section>
+      <h3>🔐 真相（クリックで表示）</h3>
+      <p class="spoiler" id="s-answer" onclick="this.classList.add('revealed')"></p>
+      <p class="spoiler-hint">クリックまたはタップで表示。ゲーム中は参加者に見せないでください。</p>
+    </section>
+
+    <section>
+      <h3>🎮 Discordでゲームを始める</h3>
+      <p style="color:#aaa; font-size:0.9rem; margin-bottom:12px;">このシナリオIDをDiscordで使ってゲームを開始できます。</p>
+      <div class="discord-box">
+        <code id="discord-cmd"></code>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const id = location.pathname.split('/').pop();
+
+    function esc(s) {
+      return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    async function load() {
+      const res = await fetch('/scenarios/api/' + id);
+      if (!res.ok) { document.getElementById('loading').textContent = 'シナリオが見つかりません'; return; }
+      const s = await res.json();
+
+      document.getElementById('loading').style.display = 'none';
+      document.getElementById('content').style.display = 'block';
+      document.getElementById('h-title').textContent = s.title;
+      document.getElementById('s-id').textContent = 'シナリオID: ' + s.id;
+      document.getElementById('s-title').textContent = s.title;
+      document.getElementById('s-meta').textContent = `作成日: ${s.created_at}`;
+      document.getElementById('s-overview').textContent = s.overview;
+      document.getElementById('s-answer').textContent = s.answer;
+      document.getElementById('discord-cmd').textContent = `/game start ${s.id}`;
+
+      const chars = document.getElementById('s-chars');
+      if (s.characters.length === 0) {
+        chars.innerHTML = '<p style="color:#666">キャラクターなし</p>';
+      } else {
+        chars.innerHTML = s.characters.map(c => `
+          <div class="char">
+            <div class="char-name">${esc(c.name)}${c.is_killer ? '<span class="char-killer">🔪 犯人</span>' : ''}</div>
+            <div class="char-desc">${esc(c.description)}</div>
+          </div>
+        `).join('');
+      }
+
+      const clues = document.getElementById('s-clues');
+      if (s.clues.length === 0) {
+        clues.innerHTML = '<p style="color:#666">手がかりなし</p>';
+      } else {
+        clues.innerHTML = s.clues.map((c, i) => `
+          <div class="clue">
+            <div class="clue-name">#${c.id} ${esc(c.name)}</div>
+            <div class="clue-desc">${esc(c.description)}</div>
+          </div>
+        `).join('');
+      }
+    }
+
+    load();
+  </script>
+</body>
+</html>

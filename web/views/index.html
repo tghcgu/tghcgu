@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>マーダーミステリー シナリオ一覧</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', sans-serif; background: #1a1a2e; color: #e0e0e0; min-height: 100vh; }
+    header { background: #16213e; padding: 20px 32px; display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid #5865f2; }
+    header h1 { font-size: 1.6rem; color: #fff; }
+    header h1 span { color: #5865f2; }
+    .btn { display: inline-block; padding: 10px 20px; border-radius: 8px; font-size: 0.95rem; font-weight: 600; cursor: pointer; text-decoration: none; border: none; transition: opacity 0.2s; }
+    .btn-primary { background: #5865f2; color: #fff; }
+    .btn-primary:hover { opacity: 0.85; }
+    .btn-danger { background: #ed4245; color: #fff; }
+    .btn-danger:hover { opacity: 0.85; }
+    main { max-width: 960px; margin: 40px auto; padding: 0 20px; }
+    .empty { text-align: center; color: #888; margin-top: 80px; font-size: 1.1rem; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; }
+    .card { background: #16213e; border-radius: 12px; padding: 20px; border: 1px solid #2d2d5e; transition: border-color 0.2s; }
+    .card:hover { border-color: #5865f2; }
+    .card h2 { font-size: 1.1rem; margin-bottom: 8px; color: #fff; }
+    .card p { font-size: 0.85rem; color: #aaa; line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+    .card-meta { margin-top: 12px; font-size: 0.75rem; color: #666; display: flex; gap: 12px; }
+    .card-meta span { display: flex; align-items: center; gap: 4px; }
+    .card-actions { margin-top: 14px; display: flex; gap: 8px; }
+    .card-actions a { flex: 1; text-align: center; }
+    #loading { text-align: center; color: #888; margin-top: 60px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>🔪 マーダーミステリー <span>シナリオ管理</span></h1>
+    <a href="/scenarios/create" class="btn btn-primary">＋ シナリオを投稿</a>
+  </header>
+  <main>
+    <div id="loading">読み込み中...</div>
+    <div id="grid" class="grid" style="display:none;"></div>
+    <p id="empty" class="empty" style="display:none;">まだシナリオがありません。最初のシナリオを投稿しましょう！</p>
+  </main>
+
+  <script>
+    async function load() {
+      const res = await fetch('/scenarios/api/list');
+      const list = await res.json();
+      document.getElementById('loading').style.display = 'none';
+      if (list.length === 0) {
+        document.getElementById('empty').style.display = 'block';
+        return;
+      }
+      const grid = document.getElementById('grid');
+      grid.style.display = 'grid';
+      grid.innerHTML = list.map(s => `
+        <div class="card">
+          <h2>${esc(s.title)}</h2>
+          <p>${esc(s.overview)}</p>
+          <div class="card-meta">
+            <span>👥 ${s.character_count}人</span>
+            <span>🔍 手がかり${s.clue_count}個</span>
+          </div>
+          <div class="card-actions">
+            <a href="/scenarios/${s.id}" class="btn btn-primary">詳細</a>
+            <button class="btn btn-danger" onclick="del(${s.id})">削除</button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    async function del(id) {
+      if (!confirm('このシナリオを削除しますか？')) return;
+      await fetch('/scenarios/api/' + id, { method: 'DELETE' });
+      load();
+    }
+
+    function esc(s) {
+      return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    load();
+  </script>
+</body>
+</html>
